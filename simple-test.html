@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Тренер - Простой тест</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #e9ecef;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .system { background: #d1ecf1; }
+        .user { background: #d4edda; }
+        .ai { background: #fff3cd; }
+        .error { background: #f8d7da; }
+        .config {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .config input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 AI Тренер - Простой тест</h1>
+        <p>Тестирование интеграции с ElevenLabs Agent</p>
+        
+        <div class="config">
+            <h3>Конфигурация:</h3>
+            <label>Agent ID:</label>
+            <input type="text" id="agentId" value="agent_8301k4me43j7ftqa21d4rv7d15m6" placeholder="Введите Agent ID">
+            <label>API Key (опционально):</label>
+            <input type="password" id="apiKey" placeholder="Введите API Key">
+            <button class="btn" onclick="updateConfig()">Обновить конфигурацию</button>
+        </div>
+        
+        <div class="status" id="status">
+            Статус: Готов к работе
+        </div>
+        
+        <div>
+            <button class="btn" id="startBtn" onclick="startTest()">🎤 Начать тест</button>
+            <button class="btn" id="stopBtn" onclick="stopTest()" disabled>⏹️ Остановить</button>
+            <button class="btn" onclick="clearLog()">🗑️ Очистить лог</button>
+        </div>
+        
+        <div class="log" id="log">
+            <div class="message system">[00:00] Система готова к тестированию</div>
+        </div>
+        
+        <div>
+            <h3>Инструкции:</h3>
+            <ol>
+                <li>Убедитесь, что Agent ID правильный</li>
+                <li>Нажмите "Начать тест"</li>
+                <li>Разрешите доступ к микрофону</li>
+                <li>Говорите с AI-тренером</li>
+                <li>Наблюдайте за логом разговора</li>
+            </ol>
+        </div>
+    </div>
+
+    <script type="module">
+        let conversation = null;
+        let isActive = false;
+        let config = {
+            agentId: 'agent_8301k4me43j7ftqa21d4rv7d15m6',
+            apiKey: ''
+        };
+        
+        // Импорт ElevenLabs SDK
+        const { Conversation } = await import('https://cdn.skypack.dev/@elevenlabs/client');
+        
+        window.updateConfig = function() {
+            config.agentId = document.getElementById('agentId').value;
+            config.apiKey = document.getElementById('apiKey').value;
+            addLog('system', '✅ Конфигурация обновлена');
+            console.log('Конфигурация:', config);
+        };
+        
+        window.startTest = async function() {
+            try {
+                document.getElementById('status').textContent = 'Статус: Подключение...';
+                document.getElementById('startBtn').disabled = true;
+                
+                addLog('system', '🔧 Инициализация ElevenLabs...');
+                addLog('system', `Agent ID: ${config.agentId}`);
+                addLog('system', `API Key: ${config.apiKey ? 'Установлен' : 'Не установлен'}`);
+                
+                // Запрос микрофона
+                addLog('system', '🎤 Запрос доступа к микрофону...');
+                await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                addLog('system', '✅ Доступ к микрофону получен');
+                
+                // Конфигурация сессии
+                const sessionConfig = {
+                    agentId: config.agentId,
+                    onConnect: () => {
+                        addLog('system', '✅ WebSocket подключение установлено');
+                        document.getElementById('status').textContent = 'Статус: Активен - говорите!';
+                        document.getElementById('stopBtn').disabled = false;
+                        isActive = true;
+                    },
+                    onDisconnect: () => {
+                        addLog('system', '❌ WebSocket подключение разорвано');
+                        document.getElementById('status').textContent = 'Статус: Отключен';
+                        isActive = false;
+                    },
+                    onMessage: (message) => {
+                        console.log('Получено сообщение:', message);
+                        if (typeof message === 'string') {
+                            addLog('ai', `🤖 AI: ${message}`);
+                        } else if (message.text) {
+                            addLog('ai', `🤖 AI: ${message.text}`);
+                        } else if (message.transcript) {
+                            addLog('user', `👤 Пользователь: ${message.transcript}`);
+                        }
+                    },
+                    onStatusChange: (status) => {
+                        addLog('system', `📊 Статус: ${JSON.stringify(status)}`);
+                    },
+                    onModeChange: (mode) => {
+                        addLog('system', `🔄 Режим: ${JSON.stringify(mode)}`);
+                    },
+                    onError: (error) => {
+                        addLog('error', `❌ Ошибка: ${error.message || error}`);
+                        document.getElementById('status').textContent = 'Статус: Ошибка';
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('stopBtn').disabled = true;
+                        isActive = false;
+                    }
+                };
+                
+                // Запуск сессии
+                addLog('system', '🚀 Запуск сессии...');
+                conversation = await Conversation.startSession(sessionConfig);
+                addLog('system', '✅ Сессия запущена успешно');
+                
+                // Получаем ID сессии
+                const sessionId = conversation.getId();
+                addLog('system', `🆔 ID сессии: ${sessionId}`);
+                
+            } catch (error) {
+                addLog('error', `❌ Ошибка: ${error.message}`);
+                document.getElementById('status').textContent = 'Статус: Ошибка';
+                document.getElementById('startBtn').disabled = false;
+                
+                // Детальная диагностика
+                if (error.message.includes('WebSocket')) {
+                    addLog('error', '💡 Проверьте интернет-соединение');
+                } else if (error.message.includes('microphone')) {
+                    addLog('error', '💡 Разрешите доступ к микрофону');
+                } else if (error.message.includes('agent')) {
+                    addLog('error', '💡 Проверьте Agent ID');
+                }
+            }
+        };
+        
+        window.stopTest = async function() {
+            if (conversation) {
+                addLog('system', '⏹️ Завершение сессии...');
+                await conversation.endSession();
+                conversation = null;
+                addLog('system', '✅ Сессия завершена');
+            }
+            
+            document.getElementById('status').textContent = 'Статус: Остановлен';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            isActive = false;
+        };
+        
+        window.clearLog = function() {
+            document.getElementById('log').innerHTML = '<div class="message system">[00:00] Лог очищен</div>';
+        };
+        
+        function addLog(type, message) {
+            const timestamp = new Date().toLocaleTimeString('ru-RU');
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerHTML = `[${timestamp}] ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Инициализация
+        addLog('system', '🚀 Система инициализирована');
+        addLog('system', '📋 Убедитесь, что запускаете через HTTP сервер (не file://)');
+    </script>
+</body>
+</html>

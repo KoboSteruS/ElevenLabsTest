@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Тренер - Быстрый тест</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #e9ecef;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .system { background: #d1ecf1; }
+        .user { background: #d4edda; }
+        .ai { background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 AI Тренер - Быстрый тест</h1>
+        <p>Простой тест интеграции с ElevenLabs Agent</p>
+        
+        <div class="status" id="status">
+            Статус: Готов к работе
+        </div>
+        
+        <div>
+            <button class="btn" id="startBtn" onclick="startTest()">🎤 Начать тест</button>
+            <button class="btn" id="stopBtn" onclick="stopTest()" disabled>⏹️ Остановить</button>
+            <button class="btn" onclick="clearLog()">🗑️ Очистить лог</button>
+        </div>
+        
+        <div class="log" id="log">
+            <div class="message system">[00:00] Система готова к тестированию</div>
+        </div>
+        
+        <div>
+            <h3>Инструкции:</h3>
+            <ol>
+                <li>Нажмите "Начать тест"</li>
+                <li>Разрешите доступ к микрофону</li>
+                <li>Говорите с AI-тренером</li>
+                <li>Наблюдайте за логом разговора</li>
+            </ol>
+        </div>
+    </div>
+
+    <script type="module">
+        let conversation = null;
+        let isActive = false;
+        
+        // Импорт ElevenLabs SDK
+        const { Conversation } = await import('https://cdn.skypack.dev/@elevenlabs/client');
+        
+        window.startTest = async function() {
+            try {
+                document.getElementById('status').textContent = 'Статус: Подключение...';
+                document.getElementById('startBtn').disabled = true;
+                
+                // Запрос микрофона
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                addLog('system', '✅ Доступ к микрофону получен');
+                
+                // Запуск сессии
+                conversation = await Conversation.startSession({
+                    agentId: 'agent_8301k4me43j7ftqa21d4rv7d15m6',
+                    onConnect: () => {
+                        addLog('system', '🔗 Подключение к AI установлено');
+                        document.getElementById('status').textContent = 'Статус: Активен - говорите!';
+                        document.getElementById('stopBtn').disabled = false;
+                        isActive = true;
+                    },
+                    onMessage: (message) => {
+                        addLog('ai', `🤖 AI: ${message.text || message}`);
+                    },
+                    onStatusChange: (status) => {
+                        addLog('system', `📊 Статус: ${status}`);
+                    },
+                    onError: (error) => {
+                        addLog('system', `❌ Ошибка: ${error.message || error}`);
+                        document.getElementById('status').textContent = 'Статус: Ошибка';
+                    }
+                });
+                
+            } catch (error) {
+                addLog('system', `❌ Ошибка: ${error.message}`);
+                document.getElementById('status').textContent = 'Статус: Ошибка';
+                document.getElementById('startBtn').disabled = false;
+            }
+        };
+        
+        window.stopTest = async function() {
+            if (conversation) {
+                await conversation.endSession();
+                conversation = null;
+            }
+            
+            document.getElementById('status').textContent = 'Статус: Остановлен';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            isActive = false;
+            
+            addLog('system', '⏹️ Тест остановлен');
+        };
+        
+        window.clearLog = function() {
+            document.getElementById('log').innerHTML = '<div class="message system">[00:00] Лог очищен</div>';
+        };
+        
+        function addLog(type, message) {
+            const timestamp = new Date().toLocaleTimeString('ru-RU');
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.innerHTML = `[${timestamp}] ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Автоматическое добавление сообщений пользователя (имитация)
+        setInterval(() => {
+            if (isActive && Math.random() < 0.1) { // 10% шанс каждую секунду
+                const messages = [
+                    'Привет! Как дела?',
+                    'Расскажи о вашем продукте',
+                    'Сколько это стоит?',
+                    'Какие у вас гарантии?',
+                    'Мне нужно подумать'
+                ];
+                const message = messages[Math.floor(Math.random() * messages.length)];
+                addLog('user', `👤 Пользователь: ${message}`);
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
